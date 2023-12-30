@@ -18,6 +18,7 @@ const veryfyJWT = (req, res, next) => {
       .status(401)
       .send({ error: true, message: "unaAuthorization access" });
   }
+  // bearer token
   const token = authorization.split(" ")[1];
 
   jwt.verify(token, process.env.USER_ACCESS_TOKEN, (err, decoded) => {
@@ -60,28 +61,38 @@ async function run() {
     app.post("/jwt", (req, res) => {
       const user = req.body;
       const token = jwt.sign(user, process.env.USER_ACCESS_TOKEN, {
-        expiresIn: "1h",
+        expiresIn: '1h',
       });
       res.send(token);
     });
 
+
+    const veryfyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = {email: email};
+      const user = await usersCollection.findOne(query);
+      if(user?.role !== 'admin'){
+        return res.status(403).send({error: true, message: 'forbidden access'})
+      }
+      next();
+    }
+
     // Users Collection Api
 
-    app.get("/users", async (req, res) => {
+    app.get("/users", veryfyJWT, veryfyAdmin,  async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
 
     app.post("/users", async (req, res) => {
       const user = req.body;
-      console.log(user);
       const query = { email: user.email };
-      console.log(query);
       const exittingUser = await usersCollection.findOne(query);
       if (exittingUser) {
         return res.send("Already This User Used");
       }
       const result = await usersCollection.insertOne(user);
+      res.send(result)
     });
 
 
@@ -97,6 +108,8 @@ async function run() {
       res.send(result)
     })
 
+
+
     app.patch("/users/admin/:id", async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
@@ -109,12 +122,16 @@ async function run() {
       res.send(result);
     });
 
+
+
     app.delete("/users/admin/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await usersCollection.deleteOne(query);
       res.send(result);
     });
+
+
 
     // Menu collection Api
     app.get("/menu", async (req, res) => {
@@ -137,10 +154,11 @@ async function run() {
         res.send([]);
       }
 
-      const decodedEmail = req.decoded.email;
-      if(email !== decodedEmail){
-        return res.status(403).send({error: true, message: 'forbidden access'})
-      }
+
+      // const decodedEmail = req.decoded.email;
+      // if(email !== decodedEmail){
+      //   return res.status(403).send({error: true, message: 'forbidden access'})
+      // }
 
       const query = { email: email };
       const result = await cartsCollection.find(query).toArray();
